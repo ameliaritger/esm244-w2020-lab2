@@ -1,0 +1,93 @@
+---
+title: "ESM 244 lab 2"
+author: "Amelia Ritger"
+date: "1/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(naniar)
+library(VIM)
+library(skimr)
+library(ggfortify)
+```
+
+## 1. Get some data
+```{r}
+ca_pb <- read_csv(here("data", "ca_pollution_burden.csv"))
+ca_dem <- read_csv(here("data", "ca_census_demographics_2010.csv"))
+```
+
+## 2. Some data cleaning and wrangling
+```{r}
+ca_pb_nopct <- ca_pb %>% 
+  clean_names() %>%
+  select(-contains("perc")) %>% 
+  select(-contains("pctl")) %>%
+  select(-latitude, -longitude)
+```
+
+```{r}
+ca_dem_clean <- ca_dem %>% 
+  clean_names()
+```
+
+## 3. Pollution burden indicators only 
+(create PCA specific selected dataset)
+```{r}
+ca_pb_subset <- ca_pb_nopct %>% 
+  select(ozone:solid_waste, asthma:housing_burden)
+```
+
+Now let's do PCA
+Use the `prcomp()` function
+```{r, eval=FALSE}
+pb_PCA <- prcomp(ca_pb_subset, scale=TRUE)
+```
+This gives an error because there are missing values!
+
+Aside: Explore missingness
+```{r}
+summary(ca_pb_subset) #there are 242 NAs in the data
+#but that's clunky, here's a nicer way to visualize NAs:
+naniar::gg_miss_var(ca_pb_subset)
+matrixplot(ca_pb_subset, sortby="poverty") #shade indicates value level; red indicates missing value (NA)
+```
+
+Remove by complete case deletion (any observation with any NA values)
+```{r}
+ca_pb_nona <- ca_pb_subset %>% 
+  drop_na()
+skimr::skim(ca_pb_nona) #alternative to summary()
+```
+
+No NA values now. Cool. Ready to do PCA (otherwise, consider imputation, etc)
+```{r}
+my_ca_pca <- prcomp(ca_pb_nona, scale=TRUE)
+summary(my_ca_pca)
+
+#biplot(my_ca_pca)
+#looks like a car wreck, let's try autoplot()
+
+my_biplot <- autoplot(my_ca_pca,
+                      colour = NA,
+                      loadings.label = TRUE,
+                      loadings.label.size = 3,
+                      loadings.label.colour = "black",
+                      loadings.label.repel = TRUE)
+```
+
+## 4. PCA for pollution burden + demographics
+
+Join together the ca_dem_clean with ca_pb_nopct
+
+```{r}
+ca_df <- ca_dem_clean %>% 
+  inner_join(ca_pb_nopct, by=c("census_tract_number" = "census_tract"))
+```
+
+
